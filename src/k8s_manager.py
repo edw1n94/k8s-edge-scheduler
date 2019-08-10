@@ -9,8 +9,10 @@ class k8s_manager(object):
     def __init__(self, k8s_config=None, namespace='default', in_cluster=False):
         if not k8s_config:
             if in_cluster:
+                print("in cluster")
                 config.load_incluster_config()
             else:
+                print("not in cluster")
                 config.load_kube_config()
             api_client = None
         else:
