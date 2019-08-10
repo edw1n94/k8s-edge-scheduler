@@ -1,4 +1,5 @@
-import src
+
+from src import k8sexception
 from kubernetes import client, config
 
 class k8s_manager(object):
@@ -7,7 +8,7 @@ class k8s_manager(object):
         try:
             v1 = client.CoreV1Api()
         except:
-            raise Exception
+            raise k8sexception
 
         print("Listing pods with their IPs:")
         ret = v1.list_pod_for_all_namespaces(watch=False)
@@ -15,8 +16,4 @@ class k8s_manager(object):
             print("%s\t%s\t%s" % (i.status.pod_ip, i.metadata.namespace, i.metadata.name))
 
 
-
-
-
-
-
+a = k8s_manager
