@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: k8s-edge-scheduler
+  name: hello
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: k8s-edge-scheduler
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: k8s-edge-scheduler
+    spec:
+      nodeSelector:
+        # should be labeled in master node
+        zone: "0"
+      containers:
+      - image: leta101/graduationproject:latest
+        name: hello
+

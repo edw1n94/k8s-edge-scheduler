@@ -1,25 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="master@121.162.16.215:2212">
+  <component name="PublishConfigData" autoUpload="Always">
     <serverData>
-      <paths name="master@121.162.16.215:2212">
+      <paths name="k8s-edge-scheduler">
         <serverdata>
           <mappings>
             <mapping deploy="/home/master/k8s-edge-scheduler" local="$PROJECT_DIR$" />
           </mappings>
         </serverdata>
       </paths>
-      <paths name="master@121.162.16.215:2212 (1)">
+      <paths name="k8s-latency-collecter">
         <serverdata>
           <mappings>
-            <mapping deploy="/home/master/k8s-edge-scheduler" local="$PROJECT_DIR$" />
-          </mappings>
-        </serverdata>
-      </paths>
-      <paths name="master@121.162.16.215:2212 (3)">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/home/master/k8s-latency-collecter" local="$PROJECT_DIR$/../k8s-latency-collector" />
+            <mapping deploy="/home/master/k8s-latency-collecter" local="$PROJECT_DIR$/../k8s-latency-collecter-beta" />
           </mappings>
         </serverdata>
       </paths>
