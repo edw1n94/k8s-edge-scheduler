@@ -3,6 +3,8 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/k8s-edgescheduler.iml" filepath="$PROJECT_DIR$/.idea/k8s-edgescheduler.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../k8s-latency-collector/.idea/k8s-latency-collector.iml" filepath="$PROJECT_DIR$/../k8s-latency-collector/.idea/k8s-latency-collector.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../untitled/.idea/untitled.iml" filepath="$PROJECT_DIR$/../untitled/.idea/untitled.iml" />
     </modules>
   </component>
 </project>
