@@ -68,9 +68,25 @@ class get_latency_from_client(Resource):
         for node in k8s_manager_obj.node_list:
             if node.status:
                 url = 'http://' + node.latency_collecter_ip + ':' + node.latency_collecter_port + '/get_latency'
-                res = requests.post(url, headers=headers, data=json.dumps(content))
-                latency[node.host_name] = re.findall("\d+",res.text)
 
+                res = requests.post(url, headers=headers, data=json.dumps(content))
+                latency[node.host_name] = float(re.findall("\d+",res.text)[0] + '.'+ re.findall("\d+",res.text)[1])
+
+    # Sort by latency
+    # code
+
+
+    # call Scheduling Method
+
+
+
+
+
+
+
+
+
+        print(latency)
         return (json.dumps(latency))
 
 
@@ -117,5 +133,5 @@ api.add_resource(get_latency_from_client, '/get_latency_from_client')
 
 
 if __name__ == '__main__':
-    app.run(host = '0.0.0.0', debug=True)
+    app.run(host = '0.0.0.0', debug=True, port=5001)
 
