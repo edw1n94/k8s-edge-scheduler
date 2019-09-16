@@ -31,6 +31,7 @@ class k8s_manager_obj(object):
         self._namespace = namespace
 
 
+
         # init node_list
 
 
