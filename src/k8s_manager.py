@@ -38,9 +38,12 @@ class k8s_manager_obj(object):
         items = self.k8s_api.list_node().items
 
 
+
+
         for item in items:
             node = k8s_nodes.k8s_nodes(item)
             self.node_list.append(node)
+
 
         # get latency_collecter pod ip
 

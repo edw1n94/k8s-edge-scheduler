@@ -2,7 +2,7 @@ import os
 from flask import Flask, jsonify, request
 from flask_restful import reqparse, abort, Api, Resource
 import k8s_manager
-import socket, requests,json
+import socket, requests, json, re
 
 app = Flask(__name__)
 api = Api(app)
@@ -20,6 +20,7 @@ def abort_exception(api_id):
         abort(404, message="API {} does not exist".format(api_id))
 
 
+
 # INIT
 parser = reqparse.RequestParser()
 parser.add_argument('task')
@@ -34,15 +35,10 @@ k8s_manager_obj = k8s_manager.k8s_manager_obj()
 k8s_manager_obj.get_node_list()
 k8s_manager_obj.get_metrics()
 
-# check node's latency collecter
-
-
 # set post parameters
-data = {'client_ip': '8.8.8.8'}
 headers = {'Content-Type': 'application/json; charset=utf-8'}
 
 
-#API WORKS
 
 class get_metrics(Resource):
     def get(self):
@@ -67,15 +63,17 @@ class get_latency_from_client(Resource):
     def post(self):
         content = request.get_json(silent=True)
         data = {'client_ip' :str(content.get('client_ip'))}
-        result = ''
 
+        latency = {}
         for node in k8s_manager_obj.node_list:
             if node.status:
                 url = 'http://' + node.latency_collecter_ip + ':' + node.latency_collecter_port + '/get_latency'
                 res = requests.post(url, headers=headers, data=json.dumps(content))
-                result = result + node.host_name + ':' + res.text
+                latency[node.host_name] = re.findall("\d+",res.text)
 
-        return result
+        return (json.dumps(latency))
+
+
 
 class Todo(Resource):
     def get(self, api_id):

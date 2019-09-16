@@ -1,10 +1,7 @@
-FROM ubuntu:latest
-MAINTAINER edw1n "edw1n@ssu.ac.kr"
-RUN apt-get update -y
-RUN apt-get install -y python-pip python-dev build-essential
-COPY . /app
+FROM python:3.6
 WORKDIR /app
+COPY requirements.txt ./
 ENV PYTHONPATH /src
-RUN pip install -r requirements.txt
-ENTRYPOINT ["python"]
-CMD ["src/k8s_scheduler.py"]
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+CMD ["python","./src/k8s_scheduler.py"]
