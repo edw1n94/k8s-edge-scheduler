@@ -1,4 +1,4 @@
 # k8s-edgescheduler
 
-A platform for dynamic resources allocation with latency in cloud-edge architecture 
+A platform for pod scheduling with latency in cloud-edge architecture 
 
