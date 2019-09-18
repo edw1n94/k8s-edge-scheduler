@@ -6,6 +6,8 @@ class k8s_nodes():
         self.address = item.status.addresses[0].address
         self.host_name = item.status.addresses[1].address
         self.max_cpu = int(item.status.capacity.get('cpu'))*1000
+
+        #if(item.status.capacity.get('memory').split(('M')[0]))
         self.max_memory = round(int(item.status.capacity.get('memory').split('K')[0])/1000)
 
 

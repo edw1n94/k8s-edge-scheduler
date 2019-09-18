@@ -31,15 +31,11 @@ class k8s_manager_obj(object):
         self._namespace = namespace
 
 
-
         # init node_list
 
 
         self.node_list = []
         items = self.k8s_api.list_node().items
-
-
-
 
         for item in items:
             node = k8s_nodes.k8s_nodes(item)
@@ -56,6 +52,25 @@ class k8s_manager_obj(object):
                         node.latency_collecter_ip = item.get('status').get('pod_ip')
 
 
+    def update_node_labels(self, node, labels, reraise=False):
+        body = {"metadata": {"labels": labels}}
+        return self.k8s_api.patch_node(name=node, body=body)
+
+        return ""
+
+
+    def sorting_by_latency(self, node_latency):
+
+        sorted_list = node_latency
+
+        for item in sorted_list.keys():
+            sorted_list[item] = float(sorted_list[item])
+
+        sorted_list = sorted(node_latency, key=lambda k : node_latency[k])
+        return sorted_list
+
+    def create_deployment_with_label_selector(self, body, namespace='default'):
+        return self.k8s_beta_api.create_namespaced_deployment(namespace=namespace,body=body)
 
     def list_services(self, labels, reraise=False):
         return self._list_namespace_resource(labels=labels,
@@ -63,7 +78,6 @@ class k8s_manager_obj(object):
                                              reraise=reraise)
     def get_node_list(self):
         return self.node_list
-
 
     def get_metrics(self):
         url = 'http://121.162.16.215:9199/metrics'
