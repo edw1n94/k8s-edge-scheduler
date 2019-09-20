@@ -4,7 +4,7 @@ metadata:
     app.kubernetes.io/name: hello-world
   name: hello-world
 spec:
-  replicas: 1
+  replicas: 5
   selector:
     matchLabels:
       app.kubernetes.io/name: hello-world
@@ -16,5 +16,10 @@ spec:
       containers:
       - image: hello-world
         name: hello-world
-#      nodeSelector:
-#        nodeNum: "4"
+        resources:
+          requests:
+            cpu: 50m
+            memory: 100Mi
+          limits:
+            cpu: 50m
+            memory: 100Mi

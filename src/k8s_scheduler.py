@@ -2,7 +2,7 @@ import os
 from flask import Flask, jsonify, request, json
 from flask_restful import reqparse, abort, Api, Resource
 import k8s_manager
-import socket, requests, json, yaml, re
+import socket, requests as req, json, yaml, re
 
 app = Flask(__name__)
 api = Api(app)
@@ -36,7 +36,7 @@ headers = {'Content-Type': 'application/json; charset=utf-8'}
 class get_metrics(Resource):
     def get(self):
         url = 'http://121.162.16.215:9199/metrics'
-        response = requests.get(url)
+        response = req.get(url)
         return eval(response.text)
 
 # TO BE DELETED
@@ -52,7 +52,7 @@ class get_collecter_status(Resource):
         for node in node_list:
             if node.status:
                 url = 'http://'+ node.latency_collecter_ip + ":"+ node.latency_collecter_port + '/get_collecter_ip'
-                response = requests.get(url)
+                response = req.get(url)
                 print(node.host_name ,response)
 
 class scheduling_by_latency(Resource):
@@ -68,12 +68,13 @@ class scheduling_by_latency(Resource):
         content = request.get_json(silent=True)
         data = {'client_ip' :str(content.get('client_ip'))}
 
+
         #### 1. Sorting By Network Latency ####
         latency = {}
         for node in k8s_manager_obj.node_list:
             if node.status:
                 url = 'http://' + node.latency_collecter_ip + ':' + node.latency_collecter_port + '/get_latency'
-                res = requests.post(url, headers=headers, data=json.dumps(content))
+                res = req.post(url, headers=headers, data=json.dumps(content))
                 latency[node.host_name] = float(re.findall("\d+",res.text)[0] + '.'+ re.findall("\d+",res.text)[1])
 
         sorted_node_list = k8s_manager_obj.sorting_by_latency(latency)
@@ -87,14 +88,38 @@ class scheduling_by_latency(Resource):
         hello = yaml.load(hello)
         hello['spec']['template']['spec']['nodeSelector'] = {'kubernetes.io/hostname': sorted_node_list[0]}
 
+        # 1. Update Resource Usages
+        replicas = int(hello['spec']['replicas'])
+        requests = hello['spec']['template']['spec']['containers'][0]['resources']['requests']
+        limits = hello['spec']['template']['spec']['containers'][0]['resources']['limits']
+
+        require_cpu = int(requests['cpu'].split('m')[0]) + int(limits['cpu'].split('m')[0])
+        require_memory = int(requests['memory'].split('M')[0]) + int(limits['memory'].split('M')[0])
+
+
+        # Check is Node has sufficient resources
+        k8s_manager_obj.get_metrics()
+
+
+        for node in k8s_manager_obj.get_node_list():
+            if node.host_name == sorted_node_list[0]:
+                if (node.max_cpu-node.cpu) - (require_cpu * replicas) > 0 and (node.max_memory-node.memory) - (require_memory * replicas) > 0:
+                    print("scheduling available")
+
+                    # exec scheduling
+                    k8s_manager_obj.create_deployment_with_label_selector(hello)
+
+                else:
+                    print("not enough resources")
+                    print("{} {} ".format((node.max_cpu-node.cpu) - (require_cpu * replicas),(node.max_memory-node.memory) - (require_memory * replicas) ))
+
+
+        # else then split replicas
+
+
         # Call Scheduling Deployment Method
-        k8s_manager_obj.create_deployment_with_label_selector(hello)
-        #### 2. Considering Resources ####
-        # if Target Node doesn't have CPU or Memory,
-        # Then deploy next node.
+        #k8s_manager_obj.create_deployment_with_label_selector(hello)
 
-
-        ###3 3. Considering Additional Label ####
 
         # TO BE IMPLEMENTED
 

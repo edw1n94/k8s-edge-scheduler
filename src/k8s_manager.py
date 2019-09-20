@@ -92,4 +92,3 @@ class k8s_manager_obj(object):
                     node.set_usage(round(int(item.get('usage').get('cpu').split('n')[0]) / 1000000),
                                    round(int(item.get('usage').get('memory').split('K')[0]) / 1024))
 
-
