@@ -1,8 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
 from kubernetes import client, config
-from kubernetes.client import CustomObjectsApi
-from kubernetes.client.rest import ApiException
 
 
 import requests
@@ -85,8 +83,6 @@ class k8s_manager_obj(object):
         items = eval(response.text)
 
         for item in items.get('items'):
-            #print("{} : {}".format(item.get('metadata').get('name'),item.get('usage')))
-
             for node in self.node_list:
                 if node.get_host_name() == item.get('metadata').get('name'):
                     node.set_usage(round(int(item.get('usage').get('cpu').split('n')[0]) / 1000000),

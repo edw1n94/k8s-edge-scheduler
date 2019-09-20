@@ -1,8 +1,7 @@
-import os
-from flask import Flask, jsonify, request, json
+from flask import Flask, request, json
 from flask_restful import reqparse, abort, Api, Resource
 import k8s_manager
-import socket, requests as req, json, yaml, re
+import socket, requests as req, json, yaml, re, copy
 
 app = Flask(__name__)
 api = Api(app)
@@ -31,8 +30,8 @@ k8s_manager_obj.get_metrics()
 # set post parameters
 headers = {'Content-Type': 'application/json; charset=utf-8'}
 
-# get Metrics OS Shell Command(kubectl top node)
-# Will be Modified
+# 메트릭 정보 얻어옴
+
 class get_metrics(Resource):
     def get(self):
         url = 'http://121.162.16.215:9199/metrics'
@@ -44,8 +43,8 @@ class client_ip(Resource):
     def get(self):
         return request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
 
-# Check is latency_collecter is Running.
-#TO BE DELETED
+# 레이턴시 수집기가 동작중인지 확인
+# TO BE DELETED
 class get_collecter_status(Resource):
     def get(self):
         node_list = k8s_manager_obj.node_list
@@ -57,19 +56,19 @@ class get_collecter_status(Resource):
 
 class scheduling_by_latency(Resource):
 
-    # Scheduling For client which called Scheduling API
+    # API를 호출한 클라이언트를 기준으로 함
     def get(self):
         client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
         latency = {}
         return "not implemeted"
 
-    # client_ip is given by POST
+    # 특정 클라이언트의 주소 기준으로 함
     def post(self):
         content = request.get_json(silent=True)
         data = {'client_ip' :str(content.get('client_ip'))}
 
 
-        #### 1. Sorting By Network Latency ####
+        #### 네트워크 레이턴시로 정렬 ####
         latency = {}
         for node in k8s_manager_obj.node_list:
             if node.status:
@@ -80,25 +79,30 @@ class scheduling_by_latency(Resource):
         sorted_node_list = k8s_manager_obj.sorting_by_latency(latency)
 
 
-        #### Scheduling By NodeSelector ####
+        #### 스케줄링 ####
 
-        # Test File, Should be Modified
-        # Add nodeSelector
-        hello = open('../hello.yaml')
-        hello = yaml.load(hello)
-        hello['spec']['template']['spec']['nodeSelector'] = {'kubernetes.io/hostname': sorted_node_list[0]}
+        # yaml 파일 예제로 수행.
+        # upload 등의 방식으로 수정해야할듯
+        deployment_yaml = open('../hello.yaml')
+        deployment_yaml = yaml.load(deployment_yaml)
+        deployment_yaml['spec']['template']['spec']['nodeSelector'] = {'kubernetes.io/hostname': sorted_node_list[0]}
 
-        # 1. Update Resource Usages
-        replicas = int(hello['spec']['replicas'])
-        requests = hello['spec']['template']['spec']['containers'][0]['resources']['requests']
-        limits = hello['spec']['template']['spec']['containers'][0]['resources']['limits']
+        # yaml파일 파싱 과정
 
+        replicas = int(deployment_yaml['spec']['replicas'])
+        requests = deployment_yaml['spec']['template']['spec']['containers'][0]['resources']['requests']
+        limits = deployment_yaml['spec']['template']['spec']['containers'][0]['resources']['limits']
+
+        # replicas를 곱하면 deployment가 요구하는 전체 cpu 또는 memory
         require_cpu = int(requests['cpu'].split('m')[0]) + int(limits['cpu'].split('m')[0])
         require_memory = int(requests['memory'].split('M')[0]) + int(limits['memory'].split('M')[0])
 
 
-        # Check is Node has sufficient resources
+        # 노드 자원 정보 업데이트
         k8s_manager_obj.get_metrics()
+
+
+
 
 
         for node in k8s_manager_obj.get_node_list():
@@ -106,30 +110,42 @@ class scheduling_by_latency(Resource):
                 if (node.max_cpu-node.cpu) - (require_cpu * replicas) > 0 and (node.max_memory-node.memory) - (require_memory * replicas) > 0:
                     print("scheduling available")
 
-                    # exec scheduling
-                    k8s_manager_obj.create_deployment_with_label_selector(hello)
+                    # 자원 충분, 스케줄링 수행
+                    k8s_manager_obj.create_deployment_with_label_selector(deployment_yaml)
+                    return "success"
 
+                # 자원이 모자랄 경우
                 else:
                     print("not enough resources")
                     print("{} {} ".format((node.max_cpu-node.cpu) - (require_cpu * replicas),(node.max_memory-node.memory) - (require_memory * replicas) ))
 
 
-        # else then split replicas
+        # 두개의 deployment로 분리
+        deployment_yaml_2 = copy.deepcopy(deployment_yaml)
+        deployment_yaml_2['spec']['template']['spec']['nodeSelector'] = {'kubernetes.io/hostname': sorted_node_list[1]}
+
+        for node in k8s_manager_obj.get_node_list():
+            if (node.host_name == sorted_node_list[0]):
+                for i in range(replicas):
+                    if (node.max_cpu - node.cpu) - (require_cpu * (replicas - i)) > 0 and (
+                            node.max_memory - node.memory) - (require_memory * (replicas - i)) > 0:
+                        split_num = i
+                        break
+
+        deployment_yaml_2['spec']['replicas'] = split_num
+        deployment_yaml['spec']['replicas'] = replicas - split_num
+        deployment_yaml_2['spec']['template']['spec']['nodeSelector'] = {'kubernetes.io/hostname': sorted_node_list[1]}
+        deployment_yaml_2['metadata']['name'] = str(deployment_yaml_2['metadata']['name']) + '2'
+
+        k8s_manager_obj.create_deployment_with_label_selector(deployment_yaml)
+        k8s_manager_obj.create_deployment_with_label_selector(deployment_yaml_2)
 
 
-        # Call Scheduling Deployment Method
-        #k8s_manager_obj.create_deployment_with_label_selector(hello)
-
-
-        # TO BE IMPLEMENTED
-
-
-
-
-
-
-    # If Scheduling has Succeded, Return Message
         return "success"
+
+
+
+
 
 # TO BE MODIFIED
 class Todo(Resource):
@@ -161,7 +177,7 @@ class TodoList(Resource):
             return API_LIST[api_id], 201
 
 
-# Definition of API Address
+# API 주소 정의
 api.add_resource(TodoList, '/apis/')
 api.add_resource(Todo, '/apis/<string:api_id>')
 api.add_resource(client_ip, '/client_ip')
