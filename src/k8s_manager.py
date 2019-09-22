@@ -1,9 +1,5 @@
 from __future__ import absolute_import, division, print_function
-
 from kubernetes import client, config
-
-
-import requests
 import k8s_nodes
 
 class k8s_manager_obj(object):
@@ -22,16 +18,10 @@ class k8s_manager_obj(object):
 
 
         self.k8s_api = client.CoreV1Api(api_client)
-        self.k8s_batch_api = client.BatchV1Api(api_client)
-        self.k8s_beta_api = client.ExtensionsV1beta1Api(api_client)
-        self.k8s_custom_object_api = client.CustomObjectsApi()
-        self.k8s_version_api = client.VersionApi(api_client)
         self._namespace = namespace
 
 
         # init node_list
-
-
         self.node_list = []
         items = self.k8s_api.list_node().items
 
@@ -50,13 +40,13 @@ class k8s_manager_obj(object):
                         node.latency_collecter_ip = item.get('status').get('pod_ip')
 
 
+    # 노드 레이블 업데이트
     def update_node_labels(self, node, labels, reraise=False):
         body = {"metadata": {"labels": labels}}
         return self.k8s_api.patch_node(name=node, body=body)
 
-        return ""
 
-
+    # 네트워크 레이턴시로 정렬.
     def sorting_by_latency(self, node_latency):
 
         sorted_list = node_latency
@@ -67,21 +57,14 @@ class k8s_manager_obj(object):
         sorted_list = sorted(node_latency, key=lambda k : node_latency[k])
         return sorted_list
 
+    #스케줄링 실행
     def create_deployment_with_label_selector(self, body, namespace='default'):
         return self.k8s_beta_api.create_namespaced_deployment(namespace=namespace,body=body)
 
-    def list_services(self, labels, reraise=False):
-        return self._list_namespace_resource(labels=labels,
-                                             resource_api=self.k8s_api.list_namespaced_service,
-                                             reraise=reraise)
-    def get_node_list(self):
-        return self.node_list
 
+    # 메트릭 서버를 호출하여 리소스 정보를 업데이트함.
     def get_metrics(self):
-        url = 'http://121.162.16.215:9199/metrics'
-        response = requests.get(url)
-        items = eval(response.text)
-
+        items = self.k8s_api.api_client.call_api('/apis/metrics.k8s.io/v1beta1/nodes', 'GET', response_type=object)[0]
         for item in items.get('items'):
             for node in self.node_list:
                 if node.get_host_name() == item.get('metadata').get('name'):

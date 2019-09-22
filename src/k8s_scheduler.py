@@ -30,19 +30,6 @@ k8s_manager_obj.get_metrics()
 # set post parameters
 headers = {'Content-Type': 'application/json; charset=utf-8'}
 
-# 메트릭 정보 얻어옴
-
-class get_metrics(Resource):
-    def get(self):
-        url = 'http://121.162.16.215:9199/metrics'
-        response = req.get(url)
-        return eval(response.text)
-
-# TO BE DELETED
-class client_ip(Resource):
-    def get(self):
-        return request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
-
 # 레이턴시 수집기가 동작중인지 확인
 # TO BE DELETED
 class get_collecter_status(Resource):
@@ -101,10 +88,6 @@ class scheduling_by_latency(Resource):
         # 노드 자원 정보 업데이트
         k8s_manager_obj.get_metrics()
 
-
-
-
-
         for node in k8s_manager_obj.get_node_list():
             if node.host_name == sorted_node_list[0]:
                 if (node.max_cpu-node.cpu) - (require_cpu * replicas) > 0 and (node.max_memory-node.memory) - (require_memory * replicas) > 0:
@@ -127,20 +110,21 @@ class scheduling_by_latency(Resource):
         for node in k8s_manager_obj.get_node_list():
             if (node.host_name == sorted_node_list[0]):
                 for i in range(replicas):
-                    if (node.max_cpu - node.cpu) - (require_cpu * (replicas - i)) > 0 and (
-                            node.max_memory - node.memory) - (require_memory * (replicas - i)) > 0:
+                    if (node.max_cpu - node.cpu) - (require_cpu * (replicas - i)) > 0 and (node.max_memory - node.memory) - (require_memory * (replicas - i)) > 0:
                         split_num = i
                         break
+
 
         deployment_yaml_2['spec']['replicas'] = split_num
         deployment_yaml['spec']['replicas'] = replicas - split_num
         deployment_yaml_2['spec']['template']['spec']['nodeSelector'] = {'kubernetes.io/hostname': sorted_node_list[1]}
         deployment_yaml_2['metadata']['name'] = str(deployment_yaml_2['metadata']['name']) + '2'
 
+        # deployment 2개 각각 적용
         k8s_manager_obj.create_deployment_with_label_selector(deployment_yaml)
         k8s_manager_obj.create_deployment_with_label_selector(deployment_yaml_2)
 
-
+        # 리턴
         return "success"
 
 
@@ -180,13 +164,11 @@ class TodoList(Resource):
 # API 주소 정의
 api.add_resource(TodoList, '/apis/')
 api.add_resource(Todo, '/apis/<string:api_id>')
-api.add_resource(client_ip, '/client_ip')
-api.add_resource(get_metrics, '/nodes')
 api.add_resource(get_collecter_status, '/get_collecter_status')
 api.add_resource(scheduling_by_latency, '/scheduling_by_latency')
 
 
-
+# 포트 5001
 if __name__ == '__main__':
     app.run(host = '0.0.0.0', debug=True, port=5001)
 
