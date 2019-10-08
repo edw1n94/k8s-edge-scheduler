@@ -1,16 +1,16 @@
-import k8s_manager,requests,json,yaml
-import os,copy
-
-manager = k8s_manager.k8s_manager_obj()
-manager.get_node_list()
-manager.get_metrics()
-node_list = manager.node_list
-
-#manager.k8s_api.api_client.rest_client.GET('/apis/')
-#data = {'client_ip': '8.8.8.8'}
-#headers = {'Content-Type': 'application/json; charset=utf-8'}
-#url = 'http://127.0.0.1:5001/scheduling_by_latency'
+import requests,json
+import time
 
 
-#res = requests.post(url, headers=headers, data=json.dumps(data))
-#print(json.dumps(res.text))
+data = {'client_ip': '121.162.16.215'}
+headers = {'Content-Type': 'application/json; charset=utf-8'}
+
+
+
+url = 'http://127.0.0.1:5001/scheduling_by_latency'
+res = requests.post(url, headers=headers, data=json.dumps(data))
+res = requests.get(url)
+
+#start = time.time()
+#print("time : ",time.time() - start)
+

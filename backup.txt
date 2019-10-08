@@ -1,0 +1,58 @@
+# yaml 파일 예제로 수행.
+        # upload 등의 방식으로 수정해야할듯
+        deployment_yaml = open('../hello.yaml')
+        deployment_yaml = yaml.load(deployment_yaml)
+        deployment_yaml['spec']['template']['spec']['nodeSelector'] = {'kubernetes.io/hostname': sorted_node_list[0]}
+
+        # yaml파일 파싱 과정
+
+        replicas = int(deployment_yaml['spec']['replicas'])
+        requests = deployment_yaml['spec']['template']['spec']['containers'][0]['resources']['requests']
+        limits = deployment_yaml['spec']['template']['spec']['containers'][0]['resources']['limits']
+
+        # replicas를 곱하면 deployment가 요구하는 전체 cpu 또는 memory
+        require_cpu = int(requests['cpu'].split('m')[0]) + int(limits['cpu'].split('m')[0])
+        require_memory = int(requests['memory'].split('M')[0]) + int(limits['memory'].split('M')[0])
+
+
+        # 노드 자원 정보 업데이트
+        k8s_manager_obj.get_metrics()
+
+        for node in k8s_manager_obj.node_list:
+            if node.host_name == sorted_node_list[0]:
+                if (node.max_cpu-node.cpu) - (require_cpu * replicas) > 0 and (node.max_memory-node.memory) - (require_memory * replicas) > 0:
+                    print("scheduling available")
+
+                    # 자원 충분, 스케줄링 수행
+                    k8s_manager_obj.create_deployment_with_label_selector(deployment_yaml)
+                    return "success"
+
+                # 자원이 모자랄 경우
+                else:
+                    print("not enough resources")
+                    print("{} {} ".format((node.max_cpu-node.cpu) - (require_cpu * replicas),(node.max_memory-node.memory) - (require_memory * replicas) ))
+
+
+        # 두개의 deployment로 분리
+        deployment_yaml_2 = copy.deepcopy(deployment_yaml)
+        deployment_yaml_2['spec']['template']['spec']['nodeSelector'] = {'kubernetes.io/hostname': sorted_node_list[1]}
+
+        for node in k8s_manager_obj.node_list:
+            if (node.host_name == sorted_node_list[0]):
+                for i in range(replicas):
+                    if (node.max_cpu - node.cpu) - (require_cpu * (replicas - i)) > 0 and (node.max_memory - node.memory) - (require_memory * (replicas - i)) > 0:
+                        split_num = i
+                        break
+
+
+        deployment_yaml_2['spec']['replicas'] = split_num
+        deployment_yaml['spec']['replicas'] = replicas - split_num
+        deployment_yaml_2['spec']['template']['spec']['nodeSelector'] = {'kubernetes.io/hostname': sorted_node_list[1]}
+        deployment_yaml_2['metadata']['name'] = str(deployment_yaml_2['metadata']['name']) + '2'
+
+        # deployment 2개 각각 적용
+        k8s_manager_obj.create_deployment_with_label_selector(deployment_yaml)
+        k8s_manager_obj.create_deployment_with_label_selector(deployment_yaml_2)
+
+        # 리턴
+        return "success"

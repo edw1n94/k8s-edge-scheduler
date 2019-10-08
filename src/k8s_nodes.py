@@ -10,9 +10,10 @@ class k8s_nodes():
         self.max_memory = round(int(item.status.capacity.get('memory').split('K')[0])/1000)
 
         #레이턴시 수집기 정보
-        self.latency_collecter_ip = None
-        self.latency_collecter_status = None
-        self.latency_collecter_port = '9400'
+        self.latency_collector_ip = None
+        self.latency_collector_status = None
+        self.latency_collector_port = '9400'
+
 
 
         # 노드 상태 얻어오기

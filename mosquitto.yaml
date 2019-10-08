@@ -4,7 +4,7 @@ metadata:
     app.kubernetes.io/name: hello-world
   name: hello-world
 spec:
-  replicas: 20
+  replicas: 5
   selector:
     matchLabels:
       app.kubernetes.io/name: hello-world
@@ -13,10 +13,8 @@ spec:
       labels:
         app.kubernetes.io/name: hello-world
     spec:
-      nodeSelector:
-        maxlatency: "3"
       containers:
-      - image: nginx:latest
+      - image: eclipse-mosquitto
         name: hello-world
         resources:
           requests:
