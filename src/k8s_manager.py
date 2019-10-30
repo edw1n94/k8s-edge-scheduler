@@ -1,8 +1,13 @@
 from __future__ import absolute_import, division, print_function
 from kubernetes import client, config
+import socket, requests as req, json, yaml, re, copy
 import k8s_nodes
 
+
 class k8s_manager_obj(object):
+
+    def create_daemonset_with_latel_selector(self,body,namespace='defau;t'):
+        return self.apps_api.create_namespaced_daemon_set(namespace=namespace,body=body)
 
     def __init__(self, k8s_config=None, namespace='default', in_cluster=False):
         if not k8s_config:
@@ -29,15 +34,26 @@ class k8s_manager_obj(object):
             node = k8s_nodes.k8s_nodes(item)
             self.node_list.append(node)
 
+        #if latency-collectors is not current running, create new daemonset
+        daemonset = self.apps_api.list_namespaced_daemon_set(namespace='default')
+        if 'k8s-latency-collector' not in (str(daemonset)):
+            print("latency collector is not running")
+            latency_collector_daemonset = yaml.load(open('../latency_collector_deployment'))
+            self.apps_api.create_namespaced_daemon_set(namespace=namespace,body=latency_collector_daemonset)
+        else:
+            print("latency collector is running")
 
         # get latency_collector pod ip
         items = self.k8s_api.list_pod_for_all_namespaces(watch=False).to_dict()
+
         for item in items.get('items'):
             if item.get('metadata').get('name').find('k8s-latency-collecter') == 0:
                 for node in self.node_list:
                     if str(item.get('spec').get('node_name')) == node.host_name:
                         node.latency_collector_ip = item.get('status').get('pod_ip')
 
+
+        self.get_metrics()
 
     # 노드 레이블 업데이트
     def update_node_labels(self, node, labels, reraise=False):
@@ -61,8 +77,6 @@ class k8s_manager_obj(object):
     def create_deployment_with_label_selector(self, body, namespace='default'):
         return self.apps_api.create_namespaced_deployment(namespace='default',body=body)
 
-
-
     # 메트릭 정보 출력 (for debug)
     def print_metrics(self):
         self.get_metrics()
@@ -71,6 +85,10 @@ class k8s_manager_obj(object):
             print("{}        {}m     {}m         {}Mi             {}Mi          {}%          {}%"
                   .format(node.host_name,node.max_cpu,node.cpu,node.max_memory,node.memory,
                           int(node.cpu/node.max_cpu*100),int(node.memory/node.max_memory*100)))
+
+    def get_currnet_daemonset(self):
+        return self.apps_api.list_namespaced_daemon_set(namespace='default')
+
 
     # 레이턴시 수집기 정보 출력 (for debug)
     def print_collector_status(self):

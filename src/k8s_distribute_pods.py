@@ -73,6 +73,14 @@ def distribute_weighted_resource(replicas,node_list,quota_list,weight_list,resou
         available_resources[node_list[best_index]]['cpu'] -= req_cpu
         available_resources[node_list[best_index]]['memory'] -= req_mem
 
+    return quota_list
+
+def test_distribute(quota_list):
+
+
+
+    return quota_list
+
 
 def split_deployment(quota_list, deployment_list, node_list=None):
     if len(quota_list) != len(deployment_list):
@@ -103,6 +111,9 @@ def get_resources_usage_rate(available_resources):
         item['resources_usage_rate'] = round((item['cpu'] / item['max_cpu']) * (item['memory'] / item['max_memory']),2)
 
     return available_resources
+
+
+
 
 
 

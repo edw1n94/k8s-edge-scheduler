@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: k8s-latency-collector
+  namespace: default
+  labels:
+    k8s-app: k8s-latency-collector
+spec:
+  selector:
+    matchLabels:
+      k8s-app: k8s-latency-collector
+  template:
+    metadata:
+      labels:
+        k8s-app: k8s-latency-collector
+    spec:
+      containers:
+      - image: "leta101/k8s-latency-collecter:1.03"
+        name: k8s-latency-collector
+        resources:
+          requests:
+            cpu: 50m
+            memory: 100Mi
+          limits:
+            cpu: 50m
+            memory: 100Mi
+        ports:
+        - containerPort: 9300
+          hostPort: 9300
+          protocol: TCP
+  updateStrategy:
+    type: RollingUpdate

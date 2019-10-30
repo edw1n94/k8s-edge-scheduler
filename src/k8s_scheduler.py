@@ -10,6 +10,8 @@ api = Api(app)
 API_LIST = {
 
     '/get_metrics' : {'': 'print usage cpu and memory'}
+    '/get_collector_status': {'': 'get latency-collector status'}
+    '/scheduling_by_latency': {'': 'do scheduling'}
 
 }
 
@@ -17,6 +19,10 @@ API_LIST = {
 def abort_exception(api_id):
     if api_id not in API_LIST:
         abort(404, message="API {} does not exist".format(api_id))
+
+
+
+
 
 # parset init
 parser = reqparse.RequestParser()
@@ -80,7 +86,11 @@ class scheduling_by_latency(Resource):
 
         replicas = int(deployment['spec']['replicas'])
         quota_list = [0 for i in range(0, len(sorted_node_list))]
-        weight_list = [0.3, 0.1, 0.1]
+
+        for i in range(0, len(sorted_node_list)):
+            deployment_list.append(copy.deepcopy(deployment))
+
+        weight_list = [0.3, 0.1]
 
         requests = deployment['spec']['template']['spec']['containers'][0]['resources']['requests']
         limits = deployment['spec']['template']['spec']['containers'][0]['resources']['limits']
@@ -92,22 +102,21 @@ class scheduling_by_latency(Resource):
         #3가지 method
 
         #round robin
-        #quota_list = k8s_distribute_pods.distribute_round_robin(replicas, node_list, quota_list)
+        #quota_list = k8s_distribute_pods.distribute_round_robin(replicas, sorted_node_list, quota_list)
 
         #weighted Round Robin
         #quota_list = k8s_distribute_pods.distribute_weighted_round_robin(replicas,sorted_node_list,quota_list,weight_list)
 
         #Weighted + Minimum Resource Usage
-        k8s_distribute_pods.distribute_weighted_resource(replicas, sorted_node_list, quota_list, weight_list, require_resources)
+        quota_list = k8s_distribute_pods.distribute_weighted_resource(replicas, sorted_node_list, quota_list, weight_list, require_resources)
 
-        for i in range(0, len(sorted_node_list)):
-            deployment_list.append(copy.deepcopy(deployment))
-
-        k8s_distribute_pods.split_deployment(quota_list,deployment_list,sorted_node_list)
+        deployment_list = k8s_distribute_pods.split_deployment(quota_list,deployment_list,sorted_node_list)
 
         for item in deployment_list:
-            print(item)
+            #print(item)
             k8s_manager_obj.create_deployment_with_label_selector(item)
+
+
 
 
 # TO BE MODIFIED
