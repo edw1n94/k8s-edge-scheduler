@@ -6,17 +6,17 @@ class k8s_nodes():
         self.address = item.status.addresses[0].address
         self.host_name = item.status.addresses[1].address
         self.max_cpu = int(item.status.capacity.get('cpu'))*1000
-
         self.max_memory = round(int(item.status.capacity.get('memory').split('K')[0])/1000)
 
-        #레이턴시 수집기 정보
-        self.latency_collector_ip = None
-        self.latency_collector_status = None
-        self.latency_collector_port = '9400'
+
+        #Scheduler Pod Info
+        self.latency_collecter_ip = None
+        self.latency_collecter_status = None
+        self.latency_collecter_port = '9400'
 
 
+        # Init Node Status. If Node is Ready status = True, Unknown or NotReady = False
 
-        # 노드 상태 얻어오기
         for condition in item.status.conditions:
             if condition.type == 'Ready':
                 if condition.status == 'True':
@@ -30,7 +30,7 @@ class k8s_nodes():
         self.cpu = cpu
         self.memory = memory
 
-    # 현재 cpu, memory량 가져옴.
+    #return current cpu and memory
     def get_current_usage(self):
         print("{} : cpu = {}%, memory = {}%".format(self.host_name,round(self.cpu/self.max_cpu * 100), round(self.memory/self.max_memory * 100)))
 
