@@ -1,54 +1,73 @@
-import k8s_manager,json,yaml,copy
-import requests as req
-import operator
-
-manager = k8s_manager.k8s_manager_obj()
-
-node_list = manager.node_list
-replicas = 20
-quota_list = [0 for i in range(0,len(node_list))]
+from flask import Flask, request, json
+from flask_restful import reqparse, abort, Api, Resource
+import k8s_manager
+import socket, requests as req, json, yaml, re, copy
+import k8s_distribute_pods
 
 
-latency_list = {'k8s-master-node':5.14,'k8s-worker-node0':3.81,'k8s-worker-node1':3.13,'k8s-worker-node2':6.55,'k8s-worker-node3':2.91}
-require_resources = {'cpu':200,'memory':200,'latency':7}
+latency = {}
+latency2 = {}
+require_latency = 10 # ms
 
-filtered_node = []
+k8s_manager_obj = k8s_manager.k8s_manager_obj()
+headers = {'Content-Type': 'application/json; charset=utf-8'}
+require_resources = {'cpu': 100, 'memory': 100,'latency' : require_latency}
 
-for node in node_list:
-    filtered_node.append({'host_name':node.host_name,'cpu':node.max_cpu-node.cpu,'memory':node.max_memory-node.memory,'latency':latency_list[node.host_name],'deploy':0})
+content = {'client_ip':'192.168.0.1'}
 
-sorted_list = sorted(filtered_node,key=lambda a:a['latency'])
+# {'k8s-worker-node1':{'type':'InternalIP,'ip':ip}}
+for node in k8s_manager_obj.node_list:
+    if node.status and node.latency_collector_ip is not None:
+        url = 'http://' + node.latency_collector_ip + ':' + node.latency_collector_port + '/get_latency'
+        res = req.post(url, headers=headers, data=json.dumps(content))
+        print("node name : {} latency : {}".format(node.host_name, float(re.findall("\d+",res.text)[0] + '.'+ re.findall("\d+",res.text)[1])))
+        if(float(re.findall("\d+",res.text)[0] + '.'+ re.findall("\d+",res.text)[1])):
+            latency[node.host_name] = {'type':'InternalIP','latency':float(re.findall("\d+",res.text)[0] + '.'+ re.findall("\d+",res.text)[1])}
 
+latency, best_node,require_latency = k8s_manager_obj.get_best_node(latency,require_latency)
 
-for i in range(0,20):
-    for node in sorted_list:
-        if node['latency'] >= require_resources['latency']:
-            score = 0
-        else:
-            score = node['cpu'] / require_resources['cpu']
-            score *= node['memory'] / require_resources['memory']
-
-            if sorted_list.index(node) / len(filtered_node) <= 0.2:
-                score *= 1.3
-            elif sorted_list.index(node) / len(filtered_node) <= 0.5:
-                score *= 1.1
-            else:
-                score *= 0.8
-
-            node['score'] = score
-
-    #Get Best Node
-    best_node = sorted_list[0]
-    for node in sorted_list:
-        if best_node['score'] < node['score']:
-            best_node = node
-
-    # Resource Update
-    best_node['deploy'] += 1
-    best_node['cpu'] -= require_resources['cpu']
-    best_node['memory'] -= require_resources['memory']
+for node in k8s_manager_obj.node_list:
+    if node is not best_node and node.host_name != 'k8s-master-node':
+        data = {'client_ip':node.address}
+        res = req.post('http://' + best_node.latency_collector_ip + ':' + best_node.latency_collector_port + '/get_latency',headers=headers,data=json.dumps(data))
+        if (float(re.findall("\d+", res.text)[0] + '.' + re.findall("\d+", res.text)[1]) < require_latency):
+            latency[node.host_name] = {'type':'InternalIP','latency':float(re.findall("\d+", res.text)[0] + '.' + re.findall("\d+", res.text)[1]) + latency[best_node.host_name]['latency']}
 
 
-for node in sorted_list:
-    print(node)
+
+        if node.external_ip is not None:
+            data = {'client_ip':node.external_ip}
+            res = req.post('http://' + best_node.latency_collector_ip + ':' + best_node.latency_collector_port + '/get_latency',headers=headers, data=json.dumps(data))
+            node_latency = float(re.findall("\d+", res.text)[0] + '.' + re.findall("\d+", res.text)[1])
+            if node_latency < require_latency:
+                if latency[node.host_name] is None or node_latency < latency[node.host_name]['latency'] :
+                    latency[node.host_name]['latency'] = node_latency
+                    latency[node.host_name]['type'] = 'ExternalIP'
+
+
+sorted_list = k8s_distribute_pods.distribute_weighted_scoring(20,require_resources,latency,k8s_manager_obj)
+
+
+'''
+ for node in k8s_manager_obj.node_list:
+            if node.host_name == best[0]:
+                url = 'http://' + node.latency_collector_ip + ':' + node.latency_collector_port + '/get_latency'
+                for node2 in k8s_manager_obj.node_list:
+                    if node2.host_name != node.host_name and node2.host_name != 'k8s-master-node':
+                        data = {'client_ip':node2.address}
+                        res = req.post(url, headers=headers, data=json.dumps(data))
+                        if (float(re.findall("\d+", res.text)[0] + '.' + re.findall("\d+", res.text)[1]) + best[1] < require_latency):
+                            latency2[node.host_name] = float(re.findall("\d+", res.text)[0] + '.' + re.findall("\d+", res.text)[1])
+
+                    #if has ExternalIP
+                    if node2.external_ip is not None and node2.host_name != node.host_name:
+                        data = {'client_ip': node2.external_ip}
+                        res = req.post(url, headers=headers, data=json.dumps(data))
+                        if (float(re.findall("\d+", res.text)[0] + '.' + re.findall("\d+", res.text)[1]) + best[1] < require_latency):
+                            latency2[node.host_name] = float(re.findall("\d+", res.text)[0] + '.' + re.findall("\d+", res.text)[1])
+
+        print(latency2)
+'''
+
+
 

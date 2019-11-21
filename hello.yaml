@@ -4,7 +4,7 @@ metadata:
     app.kubernetes.io/name: hello-world
   name: hello-world
 spec:
-  replicas: 20
+  replicas: 10
   selector:
     matchLabels:
       app.kubernetes.io/name: hello-world
@@ -14,14 +14,14 @@ spec:
         app.kubernetes.io/name: hello-world
     spec:
       nodeSelector:
-        maxlatency: "3"
+        maxlatency: "20"
       containers:
-      - image: nginx:latest
+      - image: leta101/testwebapp:latest
         name: hello-world
         resources:
           requests:
             cpu: 200m
-            memory: 200Mi
+            memory: 100Mi
           limits:
             cpu: 200m
-            memory: 200Mi
+            memory: 100Mi
