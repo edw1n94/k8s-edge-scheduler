@@ -83,6 +83,7 @@ class scheduling_by_latency(Resource):
                         re.findall("\d+", res.text)[0] + '.' + re.findall("\d+", res.text)[1]) +
                                                                                 latency[best_node.host_name]['latency']}
 
+
                 if node.external_ip is not None:
                     data = {'client_ip': node.external_ip}
                     res = req.post(
