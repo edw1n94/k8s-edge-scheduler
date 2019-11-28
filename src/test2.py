@@ -1,54 +1,26 @@
-import k8s_manager,json,yaml,copy
-import requests as req
-import operator
+from flask import Flask, request, json
+from flask_restful import reqparse, abort, Api, Resource
+import k8s_manager
+import socket, requests as req, json, yaml, re, copy
+import k8s_distribute_pods
 
-manager = k8s_manager.k8s_manager_obj()
+sorted_list2 = [{'host_name': 'k8s-worker-node5', 'deploy': 7}, {'host_name': 'k8s-worker-node6', 'deploy': 8},
+                {'host_name': 'k8s-worker-node7', 'deploy': 7},{'host_name': 'k8s-worker-node8', 'deploy': 8}]
 
-node_list = manager.node_list
-replicas = 20
-quota_list = [0 for i in range(0,len(node_list))]
+deployment = open('../hello.yaml')
+deployment = yaml.load(deployment)
+del (deployment['spec']['template']['spec']['nodeSelector']['maxlatency'])
 
+k8s_manager_obj = k8s_manager.k8s_manager_obj()
+# Pod 분배 #
+deployment_list = []
 
-latency_list = {'k8s-master-node':5.14,'k8s-worker-node0':3.81,'k8s-worker-node1':3.13,'k8s-worker-node2':6.55,'k8s-worker-node3':2.91}
-require_resources = {'cpu':200,'memory':200,'latency':7}
+for i in range(0, len(sorted_list2)):
+    deployment_list.append(copy.deepcopy(deployment))
 
-filtered_node = []
+deployment_list = k8s_distribute_pods.split_deployment(sorted_list2, deployment_list, )
 
-for node in node_list:
-    filtered_node.append({'host_name':node.host_name,'cpu':node.max_cpu-node.cpu,'memory':node.max_memory-node.memory,'latency':latency_list[node.host_name],'deploy':0})
-
-sorted_list = sorted(filtered_node,key=lambda a:a['latency'])
-
-
-for i in range(0,20):
-    for node in sorted_list:
-        if node['latency'] >= require_resources['latency']:
-            score = 0
-        else:
-            score = node['cpu'] / require_resources['cpu']
-            score *= node['memory'] / require_resources['memory']
-
-            if sorted_list.index(node) / len(filtered_node) <= 0.2:
-                score *= 1.3
-            elif sorted_list.index(node) / len(filtered_node) <= 0.5:
-                score *= 1.1
-            else:
-                score *= 0.8
-
-            node['score'] = score
-
-    #Get Best Node
-    best_node = sorted_list[0]
-    for node in sorted_list:
-        if best_node['score'] < node['score']:
-            best_node = node
-
-    # Resource Update
-    best_node['deploy'] += 1
-    best_node['cpu'] -= require_resources['cpu']
-    best_node['memory'] -= require_resources['memory']
-
-
-for node in sorted_list:
-    print(node)
-
+for item in deployment_list:
+    print(item)
+    if item['spec']['replicas'] > 0:
+        k8s_manager_obj.create_deployment_with_label_selector(item)

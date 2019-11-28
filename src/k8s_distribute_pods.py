@@ -1,12 +1,4 @@
-import k8s_manager
 
-#replicas = 20
-#node_list = ['k8s-worker-node0','k8s-worker-node3','k8s-worker-node2','k8s-worker-node1','k8s-worker-node4']
-#quota_list = [0 for i in range(0,len(node_list))]
-#weight_list = [0.3,0.1,0.1]
-#require_resources = {'cpu':200,'memory':200}
-
-manager = k8s_manager.k8s_manager_obj()
 
 def distribute_round_robin(replicas,node_list,quota_list):
 
@@ -21,77 +13,67 @@ def distribute_round_robin(replicas,node_list,quota_list):
         if index_replicas % len(quota_list) == 0:
             index_quota_list = 0
 
-    return quota_list
-
-
-#weight list에 담긴 가중치 만큼 우선 할당
-# 0.3 = 30% 우선배치, 나머지는 Round Robin
-def distribute_weighted_round_robin(replicas,node_list,quota_list,weight_list):
-
-    index_weight_list = 0
-
-    while index_weight_list < len(weight_list):
-        quota_list[index_weight_list] += round(weight_list[index_weight_list] * replicas)
-        replicas -= round(weight_list[index_weight_list] * replicas)
-
-        index_weight_list += 1
-
-    #우선 배치 후 Round Robin
-    return distribute_round_robin(replicas,node_list,quota_list)
-
-
-#우선 할당 후 남은 자원이 가장 많은 쪽부터 할당
-def distribute_weighted_resource(replicas,node_list,quota_list,weight_list,resources_list):
-
-    index_weight_list = 0
-    available_resources = manager.get_metrics()
-    del(available_resources['k8s-master-node'])
-
-
-    req_cpu = resources_list['cpu']
-    req_mem = resources_list['memory']
-
-    while index_weight_list < len(weight_list):
-        quota_list[index_weight_list] += round(weight_list[index_weight_list] * replicas)
-
-        available_resources[node_list[index_weight_list]]['cpu'] -= req_cpu * round(weight_list[index_weight_list] * replicas)
-        available_resources[node_list[index_weight_list]]['memory'] -= req_cpu * round(weight_list[index_weight_list] * replicas)
-
-        if available_resources[node_list[index_weight_list]]['cpu'] < 0 or available_resources[node_list[index_weight_list]]['memory'] < 0:
-            return "fail"
-
-        replicas -= round(weight_list[index_weight_list] * replicas)
-        index_weight_list += 1
-
-    #우선 배치 후 Available Resouces 비율이 많은 쪽에 배치
-
-
-    for index_replicas in range(0,replicas):
-        available_resources = get_resources_usage_rate(available_resources)
-        best_index = node_list.index(rank_by_resources(node_list,available_resources))
-        quota_list[best_index] += 1
-        available_resources[node_list[best_index]]['cpu'] -= req_cpu
-        available_resources[node_list[best_index]]['memory'] -= req_mem
-
-    return quota_list
-
-def test_distribute(quota_list):
-
-
 
     return quota_list
 
 
-def split_deployment(quota_list, deployment_list, node_list=None):
+
+def distribute_weighted_scoring(replicas,require_resources,latency_list,k8s_manager):
+
+    # 초기화
+    filtered_node = []
+
+    k8s_manager.update_metrics()
+    node_list = k8s_manager.node_list
+
+    #
+
+    for node in node_list:
+        if node.host_name != 'k8s-master-node' and node.host_name in latency_list.keys():
+            filtered_node.append({'host_name': node.host_name, 'cpu': node.max_cpu - node.cpu, 'memory': node.max_memory - node.memory,
+                'latency': latency_list[node.host_name]['latency'], 'deploy': 0})
+
+    sorted_list = sorted(filtered_node, key=lambda a: a['latency'])
+    for i in range(0, replicas):
+        for node in sorted_list:
+            if node['latency'] >= require_resources['latency']:
+                score = 0
+            else:
+                score = node['cpu'] / require_resources['cpu']
+                score *= node['memory'] / require_resources['memory']
+
+                if sorted_list.index(node) / len(filtered_node) <= 0.2:
+                    score *= 2.0
+                elif sorted_list.index(node) / len(filtered_node) <= 0.5:
+                    score *= 1.2
+
+                node['score'] = score
+
+        # Get Best Node
+        best_node = sorted_list[0]
+        for node in sorted_list:
+            if best_node['score'] < node['score']:
+                best_node = node
+
+        # Resource Update
+        best_node['deploy'] += 1
+        best_node['cpu'] -= require_resources['cpu']
+        best_node['memory'] -= require_resources['memory']
+
+    return sorted_list
+
+def split_deployment(quota_list, deployment_list, ):
     if len(quota_list) != len(deployment_list):
         return deployment_list
 
-    for index in range(len(deployment_list)):
-        deployment_list[index]['spec']['replicas'] = quota_list[index]
-        if node_list:
-            deployment_list[index]['metadata']['name'] = deployment_list[index]['metadata']['name']+str(index)
-            deployment_list[index]['spec']['template']['spec']['nodeSelector']['kubernetes.io/hostname'] = node_list[
-                index]
+    index = 0
+    for item in quota_list:
+        deployment_list[index]['spec']['replicas'] = item['deploy']
+        deployment_list[index]['metadata']['name'] = deployment_list[index]['metadata']['name'] + str(index)
+        deployment_list[index]['spec']['template']['spec']['nodeSelector']['kubernetes.io/hostname'] = item['host_name']
+        #de5ployment_list[index]['spec']['selector']['matchLabels']['app.kubernetes.io/name'] = deployment_list[index]['spec']['selector']['matchLabels']['app.kubernetes.io/name'] + str(index)
+        #deployment_list[index]['spec']['template']['metadata']['labels']['app.kubernetes.io/name'] =  deployment_list[index]['spec']['template']['metadata']['labels']['app.kubernetes.io/name']  + str(index)
+        index += 1
 
     return deployment_list
 
@@ -106,18 +88,9 @@ def rank_by_resources(node_list,available_resources):
 
 def get_resources_usage_rate(available_resources):
 
-
     for item in available_resources.values():
         item['resources_usage_rate'] = round((item['cpu'] / item['max_cpu']) * (item['memory'] / item['max_memory']),2)
 
     return available_resources
 
 
-
-
-
-
-#manager = k8s_manager.k8s_manager_obj()
-#quota_list = distribute_round_robin(replicas,node_list,quota_list)
-#quota_list = distribute_weighted_round_robin(replicas,node_list,quota_list,weight_list)
-#distribute_weighted_resource(replicas,node_list,quota_list,weight_list,require_resources)

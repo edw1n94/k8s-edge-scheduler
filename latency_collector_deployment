@@ -15,7 +15,7 @@ spec:
         k8s-app: k8s-latency-collector
     spec:
       containers:
-      - image: "leta101/k8s-latency-collecter:1.03"
+      - image: "leta101/k8s-latency-collector:1.18"
         name: k8s-latency-collector
         resources:
           requests:
